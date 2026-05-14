@@ -1,2 +1,2 @@
-# sikllphabet
+# Skillphabet
 jogo educativo do alfabeto
