@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jogo do Alfabeto - Deluxe</title>
+<style>
+body{
+margin:0;
+font-family:Arial;
+color:#e6e6ff;
+overflow:hidden;
+background:
+radial-gradient(circle at top, #1a2b4a, #050814 60%),
+repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 20px),
+repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 20px);
+}
+
+#start{
+position:fixed;
+inset:0;
+display:flex;
+align-items:center;
+justify-content:center;
+background:radial-gradient(circle,#0b1a3a,#050814);
+}
+
+.card{
+background:rgba(20,30,60,.92);
+padding:24px;
+border-radius:16px;
+text-align:center;
+width:340px;
+box-shadow:0 20px 60px rgba(0,0,0,.4);
+}
+
+select,button{
+width:100%;
+padding:10px;
+margin-top:8px;
+border-radius:10px;
+border:none;
+}
+
+button{
+background:#4da3ff;
+color:white;
+font-weight:bold;
+cursor:pointer;
+transition:.2s;
+}
+button:hover{transform:scale(1.03);}
+
+h1{display:none;}
+
+#topBar{
+position:fixed;
+top:12px;
+left:12px;
+right:12px;
+z-index:9999;
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+
+#menuBtn,#pauseBtn,#scoreBox{position:relative;}
+
+#menuBtn,#pauseBtn{
+padding:10px 12px;
+border-radius:12px;
+border:none;
+background:#4da3ff;
+color:white;
+font-weight:bold;
+cursor:pointer;
+box-shadow:0 6px 18px rgba(0,0,0,0.25);
+display:none;
+}
+
+#scoreBox{
+background:rgba(20,30,60,.85);
+padding:10px 14px;
+border-radius:12px;
+box-shadow:0 6px 18px rgba(0,0,0,0.25);
+font-weight:bold;
+}
+
+#wordHint{
+position:fixed;
+top:70px;
+left:50%;
+transform:translateX(-50%);
+z-index:9999;
+display:none;
+background:rgba(0,0,0,0.4);
+padding:8px 14px;
+border-radius:10px;
+font-weight:bold;
+letter-spacing:2px;
+}
+
+#game{
+position:relative;
+width:100vw;
+height:85vh;
+display:none;
+overflow:hidden;
+}
+
+.letter{
+position:absolute;
+width:54px;
+height:54px;
+display:flex;
+align-items:center;
+justify-content:center;
+background:#18224a;
+border-radius:12px;
+font-weight:bold;
+cursor:pointer;
+user-select:none;
+border:1px solid #2e3b70;
+transition:transform .1s;
+}
+.letter:active{transform:scale(0.9);}
+
+#endScreen,#winScreen,#pauseScreen{
+position:fixed;
+inset:0;
+display:none;
+align-items:center;
+justify-content:center;
+background:rgba(0,0,0,0.85);
+color:white;
+flex-direction:column;
+font-size:22px;
+gap:10px;
+z-index:9998;
+}
+
+body.word-mode #game{
+background:radial-gradient(circle,#1a0f2e,#050814);
+}
+body.word-mode .letter{
+background:#2a1450;
+border-color:#6d4cff;
+}
+</style>
+</head>
+<body>
+
+<div id="topBar">
+  <div>
+    <button id="menuBtn" onclick="goMenu()">⬅ Menu</button>
+    <button id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
+  </div>
+  <div id="scoreBox">Pontos: <span id="score">0</span> | Level <span id="level">1</span></div>
+</div>
+
+<div id="wordHint">Palavra: <span id="currentWord"></span></div>
+
+<div id="start">
+<div class="card">
+<h2>JOGO DELUXE</h2>
+<select id="mode">
+<option value="click">Ordem do Alfabeto</option>
+<option value="word">Formar Palavra</option>
+</select>
+<select id="diff">
+<option value="easy">Fácil</option>
+<option value="normal" selected>Normal</option>
+<option value="hard">Difícil</option>
+</select>
+<button onclick="start()">Iniciar</button>
+</div>
+</div>
+
+<div id="game"></div>
+
+<div id="endScreen">
+<div id="endText"></div>
+<button onclick="goMenu()">Menu</button>
+<button onclick="start()">Reiniciar</button>
+</div>
+
+<div id="winScreen">
+<div id="winText"></div>
+<button onclick="goMenu()">Menu</button>
+<button onclick="start()">Reiniciar</button>
+</div>
+
+<div id="pauseScreen">
+<div>PAUSADO</div>
+<button onclick="togglePause()">Continuar</button>
+</div>
+
+<script>
+const ALPHABET="ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const WORDS=["GATO","CASA","SOL","LUA","BOLA","PEIXE","ESCOLA","LIVRO","JANELA","CARRO","AMIGO","BANANA","FLORESTA","CADERNO"];
+
+let mode="click";
+let diff="normal";
+let score=0;
+let level=1;
+let letters=[];
+let targetIndex=0;
+let currentWord="";
+let wordIndex=0;
+let time=60;
+let timer;
+let paused=false;
+let speedMul=1;
+
+function setDiff(){
+ diff=document.getElementById("diff").value;
+ speedMul = diff=="easy"?0.7:diff=="hard"?1.5:1;
+}
+
+function addTime(){time=Math.min(60,time+5);}
+
+function updateLevel(){
+ level = 1 + Math.floor(score/100);
+ document.getElementById("level").innerText=level;
+}
+
+function updateHUD(){
+ document.getElementById("score").innerText=score;
+ updateLevel();
+}
+
+function reset(){
+ score=0;level=1;targetIndex=0;wordIndex=0;letters=[];currentWord="";
+ clearInterval(timer);time=60;
+ document.body.classList.remove('word-mode');
+ document.getElementById('menuBtn').style.display='none';
+ document.getElementById('pauseBtn').style.display='none';
+ document.getElementById('wordHint').style.display='none';
+ document.getElementById('game').innerHTML='';
+}
+
+function pickWord(){
+ currentWord=WORDS[Math.floor(Math.random()*WORDS.length)];
+ wordIndex=0;
+ document.getElementById('currentWord').innerText=currentWord;
+}
+
+function startTimer(){
+ clearInterval(timer);
+ timer=setInterval(()=>{
+ if(!paused){
+ time-=0.1;
+ if(time<=0) endGame();
+ }
+ },100);
+}
+
+function start(){
+ setDiff();
+ mode=document.getElementById("mode").value;
+ reset();
+ document.body.classList.toggle('word-mode',mode=="word");
+ document.getElementById("start").style.display="none";
+ document.getElementById("endScreen").style.display="none";
+ document.getElementById("winScreen").style.display="none";
+ document.getElementById("pauseScreen").style.display="none";
+ document.getElementById("game").style.display="block";
+ document.getElementById('menuBtn').style.display='block';
+ document.getElementById('pauseBtn').style.display='block';
+
+ if(mode=="word"){
+ pickWord();
+ document.getElementById('wordHint').style.display='block';
+ } else {
+ document.getElementById('wordHint').style.display='none';
+ }
+
+ spawn();startTimer();updateHUD();
+}
+
+function spawn(){
+ const g=document.getElementById("game");g.innerHTML="";letters=[];
+ const w=g.clientWidth,h=g.clientHeight;
+ let pool=(mode=="click")?ALPHABET:currentWord.split("").concat(ALPHABET);
+ pool.forEach(c=>{
+ const d=document.createElement("div");d.className="letter";d.innerText=c;
+ d.x=Math.random()*(w-60);d.y=Math.random()*(h-60);
+ d.vx=((Math.random()-0.5)*4)*speedMul;
+ d.vy=((Math.random()-0.5)*4)*speedMul;
+ d.style.left=d.x+"px";d.style.top=d.y+"px";
+ d.onclick=()=>{
+ if(mode=="click"&&c==ALPHABET[targetIndex]){score+=10;targetIndex++;addTime();d.remove();if(targetIndex>=ALPHABET.length)winGame();updateHUD();}
+ if(mode=="word"&&c==currentWord[wordIndex]){score+=15;wordIndex++;addTime();d.remove();if(wordIndex>=currentWord.length)winGame();updateHUD();}
+ };
+ g.appendChild(d);
+ letters.push(d);
+ });
+}
+
+function loop(){
+ const g=document.getElementById("game");const w=g.clientWidth,h=g.clientHeight;
+ letters.forEach(l=>{
+ if(!paused){
+ l.x+=l.vx;l.y+=l.vy;
+ if(l.x<0||l.x>w-60)l.vx*=-1;
+ if(l.y<0||l.y>h-60)l.vy*=-1;
+ l.style.left=l.x+"px";l.style.top=l.y+"px";
+ }
+ });
+ requestAnimationFrame(loop);
+}
+
+function togglePause(){
+ paused=!paused;
+ document.getElementById("pauseScreen").style.display=paused?"flex":"none";
+}
+
+function winGame(){clearInterval(timer);document.getElementById("game").style.display="none";document.getElementById("winScreen").style.display="flex";document.getElementById("menuBtn").style.display='none';document.getElementById("pauseBtn").style.display='none';document.getElementById("wordHint").style.display='none';document.getElementById("winText").innerText="VOCÊ VENCEU! "+score;}
+function endGame(){clearInterval(timer);document.getElementById("game").style.display="none";document.getElementById("endScreen").style.display="flex";document.getElementById("menuBtn").style.display='none';document.getElementById("pauseBtn").style.display='none';document.getElementById("wordHint").style.display='none';document.getElementById("endText").innerText="Fim! "+score;}
+function goMenu(){clearInterval(timer);document.getElementById("start").style.display="flex";document.getElementById("game").style.display="none";document.getElementById("endScreen").style.display="none";document.getElementById("winScreen").style.display="none";document.getElementById("pauseScreen").style.display="none";document.getElementById('menuBtn').style.display='none';document.getElementById('pauseBtn').style.display='none';document.getElementById('wordHint').style.display='none';}
+
+loop();
+</script>
+</body>
+</html>
