@@ -1,2 +1,2 @@
 # Skillphabet
-jogo educativo do alfabeto
+jogo educativo de letras
