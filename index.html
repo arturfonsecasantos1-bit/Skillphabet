@@ -51,10 +51,7 @@ transition:.2s;
 }
 button:hover{transform:scale(1.03);}
 
-h1{display:none;}
-
 #topBar{
-pointer-events:none;
 position:fixed;
 top:12px;
 left:12px;
@@ -65,27 +62,38 @@ justify-content:space-between;
 align-items:center;
 }
 
-#menuBtn,#pauseBtn,#scoreBox{
-pointer-events:none;position:relative;}
-
-#menuBtn,#pauseBtn{
-pointer-events:auto;
-padding:10px 12px;
-border-radius:12px;
-border:none;
-background:#4da3ff;
-color:white;
-font-weight:bold;
-cursor:pointer;
-box-shadow:0 6px 18px rgba(0,0,0,0.25);
-display:none;
-}
-
-#scoreBox{
+#menuBtn,#pauseBtn,#timerBox,#scoreBox{
 background:rgba(20,30,60,.85);
 padding:10px 14px;
 border-radius:12px;
 box-shadow:0 6px 18px rgba(0,0,0,0.25);
+font-weight:bold;
+}
+
+#menuBtn,#pauseBtn{
+background:#4da3ff;
+color:white;
+border:none;
+cursor:pointer;
+display:none;
+}
+
+#topRight{
+display:flex;
+gap:10px;
+align-items:center;
+}
+
+#progressBox{
+display:none;
+position:fixed;
+bottom:20px;
+left:50%;
+transform:translateX(-50%);
+z-index:999999;
+background:rgba(0,0,0,0.55);
+padding:10px 18px;
+border-radius:12px;
 font-weight:bold;
 }
 
@@ -100,7 +108,21 @@ background:rgba(0,0,0,0.4);
 padding:8px 14px;
 border-radius:10px;
 font-weight:bold;
-letter-spacing:2px;
+}
+
+#tutorialOverlay{
+position:fixed;
+inset:0;
+display:none;
+align-items:center;
+justify-content:center;
+background:rgba(0,0,0,0.85);
+z-index:10000;
+color:white;
+flex-direction:column;
+gap:12px;
+text-align:center;
+padding:20px;
 }
 
 #game{
@@ -124,9 +146,7 @@ font-weight:bold;
 cursor:pointer;
 user-select:none;
 border:1px solid #2e3b70;
-transition:transform .1s;
 }
-.letter:active{transform:scale(0.9);}
 
 #endScreen,#winScreen,#pauseScreen{
 position:fixed;
@@ -158,10 +178,20 @@ border-color:#6d4cff;
     <button id="menuBtn" onclick="goMenu()">⬅ Menu</button>
     <button id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
   </div>
-  <div id="scoreBox">Pontos: <span id="score">0</span> | Level <span id="level">1</span></div>
+  <div id="topRight">
+    <div id="timerBox">⏰ <span id="timerText">60</span>s</div>
+    <div id="scoreBox">Pontos: <span id="score">0</span> | Level <span id="level">1</span></div>
+  </div>
 </div>
 
 <div id="wordHint">Palavra: <span id="currentWord"></span></div>
+<div id="progressBox">Feitas: <span id="doneLetters"></span></div>
+
+<div id="tutorialOverlay">
+<h2>Tutorial</h2>
+<div id="tutorialText"></div>
+<button onclick="nextTutorial()">Continuar</button>
+</div>
 
 <div id="start">
 <div class="card">
@@ -169,6 +199,7 @@ border-color:#6d4cff;
 <select id="mode">
 <option value="click">Ordem do Alfabeto</option>
 <option value="word">Formar Palavra</option>
+<option value="tutorial">Tutorial</option>
 </select>
 <select id="diff">
 <option value="easy">Fácil</option>
@@ -214,6 +245,49 @@ let time=60;
 let timer;
 let paused=false;
 let speedMul=1;
+let usedWords=[];
+let wrongStreak=0;
+
+let tutorialStep=0;
+const tutorialSteps=[
+"Clique nas letras em ordem correta",
+"Cada acerto dá pontos e tempo extra",
+"Erros tiram pontos progressivamente",
+"Complete o alfabeto ou a palavra para vencer"
+];
+
+function speak(text){
+ if('speechSynthesis' in window){
+ const u=new SpeechSynthesisUtterance(text);
+ u.lang='pt-BR';
+ u.rate=1;
+ speechSynthesis.speak(u);
+ }
+}
+
+function showTutorial(){
+ document.getElementById('tutorialOverlay').style.display='flex';
+ tutorialStep=0;
+ document.getElementById('tutorialText').innerText=tutorialSteps[tutorialStep];
+ speak(tutorialSteps[tutorialStep]);
+}
+
+function nextTutorial(){
+ tutorialStep++;
+ if(tutorialStep>=tutorialSteps.length){
+ document.getElementById('tutorialOverlay').style.display='none';
+ startGameFromTutorial();
+ return;
+ }
+ document.getElementById('tutorialText').innerText=tutorialSteps[tutorialStep];
+ speak(tutorialSteps[tutorialStep]);
+}
+
+function startGameFromTutorial(){
+ mode="click";
+ document.getElementById('mode').value="click";
+ start();
+}
 
 function setDiff(){
  diff=document.getElementById("diff").value;
@@ -223,7 +297,7 @@ function setDiff(){
 function addTime(){time=Math.min(60,time+5);}
 
 function updateLevel(){
- level = 1 + Math.floor(score/100);
+ level=1+Math.floor(score/100);
  document.getElementById("level").innerText=level;
 }
 
@@ -233,19 +307,34 @@ function updateHUD(){
 }
 
 function reset(){
- score=0;level=1;targetIndex=0;wordIndex=0;letters=[];currentWord="";
- clearInterval(timer);time=60;
+ score=0;
+ level=1;
+ targetIndex=0;
+ wordIndex=0;
+ letters=[];
+ currentWord="";
+ usedWords=[];
+ wrongStreak=0;
+ clearInterval(timer);
+ time=60;
  document.body.classList.remove('word-mode');
  document.getElementById('menuBtn').style.display='none';
  document.getElementById('pauseBtn').style.display='none';
  document.getElementById('wordHint').style.display='none';
  document.getElementById('game').innerHTML='';
+ document.getElementById('doneLetters').innerText='';
+ document.getElementById('progressBox').style.display='none';
 }
 
 function pickWord(){
- currentWord=WORDS[Math.floor(Math.random()*WORDS.length)];
+ const available=WORDS.filter(w=>!usedWords.includes(w));
+ if(available.length===0){winGame();return;}
+ currentWord=available[Math.floor(Math.random()*available.length)];
+ usedWords.push(currentWord);
  wordIndex=0;
  document.getElementById('currentWord').innerText=currentWord;
+ document.getElementById('doneLetters').innerText='';
+ speak("Forme a palavra " + currentWord);
 }
 
 function startTimer(){
@@ -253,6 +342,7 @@ function startTimer(){
  timer=setInterval(()=>{
  if(!paused){
  time-=0.1;
+ document.getElementById('timerText').innerText=Math.ceil(time);
  if(time<=0) endGame();
  }
  },100);
@@ -262,6 +352,13 @@ function start(){
  setDiff();
  mode=document.getElementById("mode").value;
  reset();
+
+ if(mode=="tutorial"){
+ showTutorial();
+ return;
+ }
+
+ document.getElementById('progressBox').style.display='block';
  document.body.classList.toggle('word-mode',mode=="word");
  document.getElementById("start").style.display="none";
  document.getElementById("endScreen").style.display="none";
@@ -282,32 +379,78 @@ function start(){
 }
 
 function spawn(){
- const g=document.getElementById("game");g.innerHTML="";letters=[];
+ const g=document.getElementById("game");
+ g.innerHTML="";
+ letters=[];
  const w=g.clientWidth,h=g.clientHeight;
  let pool=(mode=="click")?ALPHABET:currentWord.split("").concat(ALPHABET);
+
  pool.forEach(c=>{
- const d=document.createElement("div");d.className="letter";d.innerText=c;
- d.x=Math.random()*(w-60);d.y=Math.random()*(h-60);
+ const d=document.createElement("div");
+ d.className="letter";
+ d.innerText=c;
+ d.x=Math.random()*(w-60);
+ d.y=Math.random()*(h-60);
  d.vx=((Math.random()-0.5)*4)*speedMul;
  d.vy=((Math.random()-0.5)*4)*speedMul;
- d.style.left=d.x+"px";d.style.top=d.y+"px";
+ d.style.left=d.x+"px";
+ d.style.top=d.y+"px";
+
  d.onclick=()=>{
- if(mode=="click"&&c==ALPHABET[targetIndex]){score+=10;targetIndex++;addTime();d.remove();if(targetIndex>=ALPHABET.length)winGame();updateHUD();}
- if(mode=="word"&&c==currentWord[wordIndex]){score+=15;wordIndex++;addTime();d.remove();if(wordIndex>=currentWord.length)winGame();updateHUD();}
+ speak(c);
+
+ if(mode=="click"&&c==ALPHABET[targetIndex]){
+ score+=10;
+ targetIndex++;
+ wrongStreak=0;
+ addTime();
+ d.remove();
+ document.getElementById('doneLetters').innerText=ALPHABET.slice(0,targetIndex).join(' ');
+ if(targetIndex>=ALPHABET.length)winGame();
+ updateHUD();
+ return;
+ }
+
+ if(mode=="word"&&c==currentWord[wordIndex]){
+ score+=15;
+ wordIndex++;
+ wrongStreak=0;
+ addTime();
+ d.remove();
+ document.getElementById('doneLetters').innerText=currentWord.split('').map((l,i)=>i<wordIndex?l:'_').join(' ');
+ if(wordIndex>=currentWord.length){
+ score+=50;
+ updateHUD();
+ pickWord();
+ spawn();
+ return;
+ }
+ updateHUD();
+ return;
+ }
+
+ wrongStreak++;
+ score -= wrongStreak;
+ if(score<0) score=0;
+ updateHUD();
  };
+
  g.appendChild(d);
  letters.push(d);
  });
 }
 
 function loop(){
- const g=document.getElementById("game");const w=g.clientWidth,h=g.clientHeight;
+ const g=document.getElementById("game");
+ const w=g.clientWidth,h=g.clientHeight;
  letters.forEach(l=>{
  if(!paused){
- l.x+=l.vx;l.y+=l.vy;
+ l.x+=l.vx;
+ l.y+=l.vy;
  if(l.x<0||l.x>w-60)l.vx*=-1;
  if(l.y<0||l.y>h-60)l.vy*=-1;
- l.style.left=l.x+"px";l.style.top=l.y+"px";
+ l.style.left=l.x+"px";
+ l.style.top=l.y+"px";
  }
  });
  requestAnimationFrame(loop);
@@ -318,9 +461,38 @@ function togglePause(){
  document.getElementById("pauseScreen").style.display=paused?"flex":"none";
 }
 
-function winGame(){clearInterval(timer);document.getElementById("game").style.display="none";document.getElementById("winScreen").style.display="flex";document.getElementById("menuBtn").style.display='none';document.getElementById("pauseBtn").style.display='none';document.getElementById("wordHint").style.display='none';document.getElementById("winText").innerText="VOCÊ VENCEU! "+score;}
-function endGame(){clearInterval(timer);document.getElementById("game").style.display="none";document.getElementById("endScreen").style.display="flex";document.getElementById("menuBtn").style.display='none';document.getElementById("pauseBtn").style.display='none';document.getElementById("wordHint").style.display='none';document.getElementById("endText").innerText="Fim! "+score;}
-function goMenu(){clearInterval(timer);document.getElementById("start").style.display="flex";document.getElementById("game").style.display="none";document.getElementById("endScreen").style.display="none";document.getElementById("winScreen").style.display="none";document.getElementById("pauseScreen").style.display="none";document.getElementById('menuBtn').style.display='none';document.getElementById('pauseBtn').style.display='none';document.getElementById('wordHint').style.display='none';}
+function winGame(){
+ clearInterval(timer);
+ document.getElementById("game").style.display="none";
+ document.getElementById("winScreen").style.display="flex";
+ document.getElementById("menuBtn").style.display='none';
+ document.getElementById("pauseBtn").style.display='none';
+ document.getElementById("winText").innerText="VOCÊ VENCEU! "+score;
+ document.getElementById('progressBox').style.display='none';
+}
+
+function endGame(){
+ clearInterval(timer);
+ document.getElementById("game").style.display="none";
+ document.getElementById("endScreen").style.display="flex";
+ document.getElementById("menuBtn").style.display='none';
+ document.getElementById("pauseBtn").style.display='none';
+ document.getElementById("endText").innerText="Fim! "+score;
+ document.getElementById('progressBox').style.display='none';
+}
+
+function goMenu(){
+ clearInterval(timer);
+ document.getElementById("start").style.display="flex";
+ document.getElementById("game").style.display="none";
+ document.getElementById("endScreen").style.display="none";
+ document.getElementById("winScreen").style.display="none";
+ document.getElementById("pauseScreen").style.display="none";
+ document.getElementById('menuBtn').style.display='none';
+ document.getElementById('pauseBtn').style.display='none';
+ document.getElementById('wordHint').style.display='none';
+ document.getElementById('progressBox').style.display='none';
+}
 
 loop();
 </script>
