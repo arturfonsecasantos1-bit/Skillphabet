@@ -54,6 +54,7 @@ button:hover{transform:scale(1.03);}
 h1{display:none;}
 
 #topBar{
+pointer-events:none;
 position:fixed;
 top:12px;
 left:12px;
@@ -64,9 +65,11 @@ justify-content:space-between;
 align-items:center;
 }
 
-#menuBtn,#pauseBtn,#scoreBox{position:relative;}
+#menuBtn,#pauseBtn,#scoreBox{
+pointer-events:none;position:relative;}
 
 #menuBtn,#pauseBtn{
+pointer-events:auto;
 padding:10px 12px;
 border-radius:12px;
 border:none;
